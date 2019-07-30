@@ -22,44 +22,50 @@ fn main() {
     str_1 = str_1.replace("\n", "");
 
     for each in reb.captures_iter(&str_1) {
-        str_2 = each.get(0).unwrap().as_str().to_string();
+        str_2 = each.get(1).unwrap().as_str().to_string();
     }
 
     for each in rea.captures_iter(&str_2){
         dir.push(each.get(1).unwrap().as_str());
         urls.push("https://manhua.dmzj.com/".to_string() + each.get(2).unwrap().as_str());
     }
-
     for each in urls{
         pages.push(get_html(&each));
     }
     for ea in &pages{
         for each in rec.captures_iter(ea){
             img_url = "https://images.dmzj.com/b".to_string() + each.get(1).unwrap().as_str() + "/";
+            img_url = img_url.replace("\\", "");
         }
-        img_urls.push(img_url);
+        img_urls.push(img_url.clone());
     }
-    img_url = img_url.replace("\\", "");
+    let mut buffer:Vec<String> = img_urls.clone();
+    for each in img_urls{
+        buffer.push(each.to_string());
+    }
+    img_urls = buffer;
+    println!("{:?}", img_urls);
 
+    let mut i:usize = 0;
     for ea in &dir{
         fs::create_dir("./".to_string() + ea);
-
+        let _img_url = &img_urls[i];
         for each in 1..99{
             let mut page = String::new();
             page = each.to_string();
             if page.len() == 1{
             page = "0".to_string() + page.as_str();
             }
-            let mut f = File::create("./".to_string() + ea + "/" + page.as_str()).unwrap();
-            let mut res = get_img(&(img_url.clone() + &page + ".jpg"));
+            let mut f = File::create("./".to_string() + ea + "/" + page.as_str() + ".jpg").unwrap();
+            let mut res = get_img(&(_img_url.clone() + &page + ".jpg"));
             if res.status().is_success(){
                 io::copy(& mut res, &mut f);
             }else {
                 break;
             }
         }
+        i += 1;
 }
-print!("{:?}", dir);
 //    println!("{:?}", urls);
 }
 
