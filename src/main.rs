@@ -7,61 +7,98 @@ use std::io;
 use std::borrow::Borrow;
 use std::fs;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum UrlType{
+    Normal,
+    Pic,
+    None,
+}
+
+#[derive(Clone, Debug)]
+struct ImgInfo{
+    url: String,
+    img_type:UrlType
+}
+impl ImgInfo{
+    fn new(u:String, type_:UrlType) ->ImgInfo{
+        ImgInfo{
+            url:u,
+            img_type:type_
+        }
+    }
+}
+
+
 fn main() {
 //    let rea:Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(.*?)\" >(?:.*?)</a>(?:.*?)</li>").unwrap();
 //    let red:Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(.*?)\"?class=\"color_red\">(?:.*?)</a>(?:.*?)</li>").unwrap();
-    let rea:Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(/biedangounijiangle/(\\d*?)\\.shtml)\" ").unwrap();
-    let reb:Regex = Regex::new("<div class=\"cartoon_online_border\" >(?:.*?)<ul>(?:.*?)(.*?)</ul>").unwrap();
-    let rec:Regex = Regex::new("var next_chapter_pages = '\\[\"b(.*?)/01\\.jpg").unwrap();
+    let rea: Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(/biedangounijiangle/(\\d*?)\\.shtml)\" ").unwrap();
+    let reb: Regex = Regex::new("<div class=\"cartoon_online_border\" >(?:.*?)<ul>(?:.*?)(.*?)</ul>").unwrap();
+    let rec: Regex = Regex::new("var next_chapter_pages = '\\[\"b(.*?)/(01|pic_001)\\.jpg").unwrap();
     let mut str_1 = String::new();
     let mut str_2 = String::new();
-    let mut urls:Vec<String>= Vec::new();
-    let mut pages:Vec<String> = Vec::new();
-    let mut img_url = String::new();
-    let mut dir:Vec<String> = Vec::new();
-    let mut img_urls:Vec<&str> = Vec::new();
+    let mut urls: Vec<String> = Vec::new();
+    let mut pages: Vec<String> = Vec::new();
+    let mut dir: Vec<String> = Vec::new();
+    let mut img_urls: Vec<ImgInfo> = Vec::new();
     str_1 = get_html("https://manhua.dmzj.com/biedangounijiangle/");
     str_1 = str_1.replace("\n", "");
 
-    get_page_info(rea, &str_1, &mut dir, & mut urls);
+    get_page_info(rea, &str_1, &mut dir, &mut urls);
 
     println!("{:?}", urls.len());
-    for each in urls{
+    for each in urls {
         pages.push(get_html(&each));
-
     }
-    for ea in pages{
-        for each in rec.captures_iter(ea.as_str()){
-            img_url = "https://images.dmzj.com/b".to_string() + each.get(1).unwrap().as_str() + "/";
+    for ea in pages {
+        if !rec.is_match(&ea) {
+            img_urls.push(ImgInfo::new("".to_string(), UrlType::None));
+            println!("skip:{:?}", ea);
         }
-    img_url = img_url.replace("\\", "");
-    img_urls.push(img_url.as_str());
+        for each in rec.captures_iter(ea.as_str()) {
+            if each.get(2).unwrap().as_str() == "01" {
+                img_urls.push(ImgInfo::new(("https://images.dmzj.com/b".to_string() + each.get(1).unwrap().as_str() + "/").replace("\\", ""), UrlType::Normal));
+            } else {
+                img_urls.push(ImgInfo::new(("https://images.dmzj.com/b".to_string() + each.get(1).unwrap().as_str() + "/").replace("\\", ""), UrlType::Pic));
+            }
+        }
     }
     println!("{:?}", img_urls.len());
-    let mut buffer:Vec<&str> = img_urls.clone();
-    for each in img_urls{
+    let mut buffer: Vec<ImgInfo> = img_urls.clone();
+    for each in img_urls {
         buffer.push(each);
     }
     img_urls = buffer;
     println!("{:?}", img_urls);
 
-    for each in &dir{
+    for each in &dir {
         fs::create_dir("./".to_string() + each);
     }
-    for ea in img_urls{
-        for each in 1..99{
-            let mut page = String::new();
-            page = each.to_string();
-            if page.len() == 1{
-            page = "0".to_string() + page.as_str();
-            }
-            let mut f = File::create("./".to_string() + ea + "/" + page.as_str() + ".jpg").unwrap();
-            let mut res = get_img(&(ea.to_string() + &page + ".jpg"));
-            if res.status().is_success(){
-                io::copy(& mut res, &mut f);
-            }else {
+    let mut index: usize = 0;
+    for ea in img_urls {
+        println!("Writing to path:{:?}", &dir[index]);
+        for each in 1..99 {
+            if ea.img_type == UrlType::None {
                 break;
             }
+            let mut page = String::new();
+            page = each.to_string();
+            if page.len() == 1 {
+                page = "0".to_string() + page.as_str();
+            }
+            let file_path = "./".to_string() + &dir[index] + "/" + page.as_str() + ".jpg";
+            if ea.img_type == UrlType::Pic {
+                let mut res = get_img(&(ea.url.to_string() + "pic_0" + &page + ".jpg"));
+                if !write_to_file(&mut res, file_path) { break }
+            } else {
+                let mut res = get_img(&(ea.url.to_string() + &page + ".jpg"));
+                if !write_to_file(&mut res, file_path) { break }
+            }
+        }
+        index += 1;
+        println!("{}", index);
+        if index == dir.len() {
+            break;
         }
     }
 }
@@ -75,14 +112,23 @@ fn get_html(url: &str) -> String{
 
 
 fn get_img(url: &str) -> reqwest::Response{
-    println!("{}", url);
+    println!("Getting:{}", url);
     reqwest::get(url).unwrap()
 }
 
 fn get_page_info(re: Regex, page_item: &str, dirs:&mut Vec<String>, urls:&mut Vec<String>){
     for each in re.captures_iter(page_item){
         dirs.push(each.get(1).unwrap().as_str().to_string());
-        println!("{:?}", each);
         urls.push("https://manhua.dmzj.com/".to_string() + each.get(2).unwrap().as_str());
+    }
+}
+
+fn write_to_file(reader: & mut reqwest::Response, path:String) ->bool {
+    if reader.status().is_success(){
+        let mut f = File::create(path).unwrap();
+        io::copy(reader, & mut f);
+        true
+    }else {
+        false
     }
 }
