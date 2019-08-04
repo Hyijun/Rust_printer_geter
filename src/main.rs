@@ -8,6 +8,7 @@ use std::borrow::Borrow;
 use std::fs;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+// In fact, I can't know what's the meaning of those words.
 enum UrlType{
     Normal,
     Pic,
@@ -28,13 +29,14 @@ impl ImgInfo{
     }
 }
 
-
 fn main() {
 //    let rea:Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(.*?)\" >(?:.*?)</a>(?:.*?)</li>").unwrap();
 //    let red:Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(.*?)\"?class=\"color_red\">(?:.*?)</a>(?:.*?)</li>").unwrap();
-    let rea: Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(/biedangounijiangle/(\\d*?)\\.shtml)\" ").unwrap();
+//    let rec: Regex = Regex::new("var next_chapter_pages = '\\[\"b(.*?)/(01|pic_001)|(.*?_p0_master1200)?\\.jpg").unwrap();
+    let rea: Regex = Regex::new("<li><a title=\"(.*?)\" href=\"(/biedangounijiangle/(\\d*?)\\.shtml)\"").unwrap();
     let reb: Regex = Regex::new("<div class=\"cartoon_online_border\" >(?:.*?)<ul>(?:.*?)(.*?)</ul>").unwrap();
-    let rec: Regex = Regex::new("var next_chapter_pages = '\\[\"b(.*?)/(01|pic_001)\\.jpg").unwrap();
+    let rec: Regex = Regex::new("var next_chapter_pages = \'\\[\"b(.*?)/(01|pic_001)\\.jpg").unwrap();
+//    let red: Regex = Regex::new("var next_chapter_pages = '\\[\"b(.*?)/(01|pic_001)\\.jpg").unwrap();
     let mut str_1 = String::new();
     let mut str_2 = String::new();
     let mut urls: Vec<String> = Vec::new();
@@ -46,11 +48,13 @@ fn main() {
 
     get_page_info(rea, &str_1, &mut dir, &mut urls);
 
-    println!("{:?}", urls.len());
+    let t = 0;
     for each in urls {
         pages.push(get_html(&each));
     }
     for ea in pages {
+        print!("{}：", ea);
+        println!("{}", rec.is_match(&ea));
         if !rec.is_match(&ea) {
             img_urls.push(ImgInfo::new("".to_string(), UrlType::None));
             println!("skip:{:?}", ea);
@@ -63,20 +67,12 @@ fn main() {
             }
         }
     }
-    println!("{:?}", img_urls.len());
-    let mut buffer: Vec<ImgInfo> = img_urls.clone();
-    for each in img_urls {
-        buffer.push(each);
-    }
-    img_urls = buffer;
-    println!("{:?}", img_urls);
 
     for each in &dir {
         fs::create_dir("./".to_string() + each);
     }
     let mut index: usize = 0;
     for ea in img_urls {
-        println!("Writing to path:{:?}", &dir[index]);
         for each in 1..99 {
             if ea.img_type == UrlType::None {
                 break;
@@ -96,7 +92,6 @@ fn main() {
             }
         }
         index += 1;
-        println!("{}", index);
         if index == dir.len() {
             break;
         }
@@ -117,7 +112,7 @@ fn get_img(url: &str) -> reqwest::Response{
 }
 
 fn get_page_info(re: Regex, page_item: &str, dirs:&mut Vec<String>, urls:&mut Vec<String>){
-    for each in re.captures_iter(page_item){
+    for each in re.captures_iter(page_item) {
         dirs.push(each.get(1).unwrap().as_str().to_string());
         urls.push("https://manhua.dmzj.com/".to_string() + each.get(2).unwrap().as_str());
     }
