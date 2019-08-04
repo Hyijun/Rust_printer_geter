@@ -67,7 +67,7 @@ fn main() {
             }
         }
     }
-
+    dir = dir[1..].to_vec(); // todo 由于不知道为何在请求第一页漫画的时候无法获取必要信息，这里采取了硬性的跳过方法，未来需要找出原因并修复。
     for each in &dir {
         fs::create_dir("./".to_string() + each);
     }
